@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="MemorabiliaRAG.Core/MemorabiliaRAG.Core.csproj" />
+  <Project Path="MemorabiliaRAG/MemorabiliaRAG.csproj" />
+</Solution>
