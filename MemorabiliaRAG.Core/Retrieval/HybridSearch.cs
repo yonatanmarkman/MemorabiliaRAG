@@ -6,13 +6,12 @@ namespace MemorabiliaRAG.Core.Retrieval;
 public class HybridSearch
 {
     public List<EmbeddedItem> FindTopMatches(
-        string question,
+        List<string> questionKeywords,
         float[] queryVector,
         List<EmbeddedItem> candidates,
         int topK = Constants.DefaultTopK,
         double minCombinedScore = Constants.MinCombinedScore)
     {
-        List<string> questionKeywords = ExtractKeywords(question);
 
         IEnumerable<CandidateWithMultipleScores> res =
             candidates
@@ -25,8 +24,10 @@ public class HybridSearch
             .Where(x => x.FinalScore >= minCombinedScore)
             .OrderByDescending(x => x.FinalScore);
 
-        return res
-            .Take(topK)
+        IEnumerable<CandidateWithMultipleScores> resBeforeReturn = res
+            .Take(topK);
+
+        return resBeforeReturn
             .Select(x => x.Candidate)
             .ToList();
     }
@@ -42,11 +43,17 @@ public class HybridSearch
 
         foreach (string subQuery in subQueries)
         {
+            List<string> subQueryKeyWords = ExtractKeywords(subQuery);
+
+            string cleanSubQuery = subQueryKeyWords.Count > 0 
+                                    ? string.Join(" ", subQueryKeyWords) 
+                                    : subQuery;
+
             float[] subVector = await embeddingService
-                .EmbedQueryAsync(subQuery);
+                            .EmbedQueryAsync(cleanSubQuery);
 
             List<EmbeddedItem> subMatches = FindTopMatches(
-                subQuery, 
+                subQueryKeyWords, 
                 subVector, 
                 candidates, 
                 topK);
@@ -60,6 +67,7 @@ public class HybridSearch
             .Take(topK * subQueries.Count)
             .ToList(); // cap sensibly
     }
+
 
     private static List<string> SplitIntoSubQueries(string question)
     {

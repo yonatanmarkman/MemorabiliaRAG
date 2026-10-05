@@ -1,0 +1,6 @@
+@MemorabiliaRAG.Api_HostAddress = http://localhost:5195
+
+GET {{MemorabiliaRAG.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

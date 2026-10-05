@@ -46,6 +46,6 @@ internal static class Constants
         "do", "does", "did", "is", "are", "was", "were", "be", "been", "being",
         "have", "has", "had", "i", "my", "me", "you", "your",
         "and", "or", "but", "if", "so", "as", "than",
-        "item", "items", "signed", "top", "five", "5"
+        "item", "items", "signed", "autographed", "top"
     };
 }
