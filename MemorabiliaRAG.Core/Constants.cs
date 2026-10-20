@@ -2,9 +2,11 @@ using OpenAI.Chat;
 
 namespace MemorabiliaRAG.Core;
 
-internal static class Constants
+public static class Constants
 {
     public const int DefaultTopK = 5;
+    public const int CandidatePoolSize = 20;
+    public const int FinalK = 10;
 
     /*
     Empirically calibrated against text-embedding-3-small on this dataset:
@@ -19,7 +21,7 @@ internal static class Constants
 
     public const string Model = "gpt-4o-mini";
 
-    public const string PromptForOpenAI = 
+    public const string PromptForAnswerGenerator = 
         "You are an assistant that answers questions about the user's personal autograph/memorabilia collection. " +
         "Only use the numbered items listed below as context. If the context doesn't contain enough information " +
         "to answer, say so plainly rather than guessing or inventing details.\n\n" +
@@ -27,6 +29,19 @@ internal static class Constants
         "actually answer the question, even if it was included in the list below.\n\n" +
         "After your answer, add a line starting with 'Sources used:' followed by the bracketed numbers " +
         "of ONLY the items you actually relied on (e.g. 'Sources used: [2], [4]'). If you used none, write 'Sources used: none'.";
+
+    public const string PromptForReranker = 
+        "You are a relevance judge for a search over a personal autograph/memorabilia collection. " +
+        "You get a question and numbered candidate items from a similarity search. " +
+        "Similarity search returns false positives: items that only share a word or a genre with the question. " +
+        "Decide which items genuinely satisfy the question.\n\n" +
+        "Rules:\n" +
+        "- Include an item only if it actually answers the question.\n" +
+        "- You may use well-known facts (e.g. which band a musician belongs to), but if unsure, exclude the item.\n" +
+        "- If the question names several artists, an item matching any of them is relevant.\n" +
+        "- Order the relevant items from most to least relevant.\n\n" +
+        "Respond with JSON only, in exactly this form: {\"relevant\": [3, 1, 7]}. " +
+        "Use an empty list if no item is relevant.";
 
     public static readonly ChatCompletionOptions ChatOptions = new ChatCompletionOptions
     {
@@ -46,6 +61,6 @@ internal static class Constants
         "do", "does", "did", "is", "are", "was", "were", "be", "been", "being",
         "have", "has", "had", "i", "my", "me", "you", "your",
         "and", "or", "but", "if", "so", "as", "than",
-        "item", "items", "signed", "autographed", "top"
+        "item", "items", "signed", "autographed", "top", "obtained"
     };
 }

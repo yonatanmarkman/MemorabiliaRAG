@@ -20,7 +20,7 @@ public class AnswerGenerator
         var messages = new List<ChatMessage>
         {
             new SystemChatMessage(
-                Constants.PromptForOpenAI),
+                Constants.PromptForAnswerGenerator),
             new UserChatMessage(
                 Constants.GetUserChatMessage(context, question))
         };

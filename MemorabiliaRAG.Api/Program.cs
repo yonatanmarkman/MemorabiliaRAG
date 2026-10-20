@@ -20,6 +20,7 @@ public class Program
         // ---- Register singletons ----
         builder.Services.AddSingleton(new EmbeddingService(openAiKey));
         builder.Services.AddSingleton(new AnswerGenerator(openAiKey));
+        builder.Services.AddSingleton<IReranker>(new RerankerLLM(openAiKey));
         builder.Services.AddSingleton<HybridSearch>();
         builder.Services.AddControllers();
 
@@ -31,15 +32,14 @@ public class Program
         const string xlsxFilePath = @"..\DataSets\Yony_s_autograph_collection.xlsx";
         const string cacheFilePath = @"..\DataSets\embeddings_cache.json";
 
-        // The embedded item list needs async loading — can't just "new" it inline.
-        // Load it here, synchronously, at startup, then register the already-built result:
-
         // ---- Load the embeddings cache once, at startup ----
-        EmbeddingCache cache = new EmbeddingCache(cacheFilePath);
+        var cache = new EmbeddingCache(cacheFilePath);
+        var embeddingService = new EmbeddingService(openAiKey);
+        
         List<EmbeddedItem> embeddedItems = cache.Exists()
             ? await cache.LoadAsync()
-            : throw new InvalidOperationException("No embeddings cache found — run the console app first to generate one.");
-
+            : await EmbeddingMethods.EmbedItemsAsync(xlsxFilePath, cache, embeddingService);
+        
         builder.Services.AddSingleton(embeddedItems);
 
         WebApplication app = builder.Build();

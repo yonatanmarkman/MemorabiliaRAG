@@ -1,4 +1,5 @@
 using ClosedXML.Excel;
+using DocumentFormat.OpenXml.Office.CustomUI;
 using MemorabiliaRAG.Core.Models;
 
 namespace MemorabiliaRAG.Core.Data;
@@ -23,25 +24,26 @@ public class ExcelItemLoader
         foreach (IXLRangeRow row in rows)
         {
             string itemDescription = row.Cell(1).GetString().Trim();
+            itemDescription = itemDescription.Replace(".", "");
 
             if (string.IsNullOrWhiteSpace(itemDescription))
                 continue; // Skip blank rows
 
             string? obtainedAt = row.Cell(2).GetString().Trim() is { Length: > 0 } o ? o : null;
 
-            int? signingYear = null;
-            DateOnly? signingDate = null;
+            int? yearOfObtaining = null;
+            DateOnly? dateOfObtaining = null;
             IXLCell dateCell = row.Cell(3);
 
             if (dateCell.DataType == XLDataType.DateTime)
             {
                 DateTime dt = dateCell.GetDateTime();
-                signingDate = DateOnly.FromDateTime(dt);
+                dateOfObtaining = DateOnly.FromDateTime(dt);
             }
             else if (dateCell.DataType == XLDataType.Number)
             {
                 // stored as a bare year, e.g. 2016
-                signingYear = (int)dateCell.GetDouble();
+                yearOfObtaining = (int)dateCell.GetDouble();
             }
 
             string? notes = row.Cell(4).GetString().Trim() is { Length: > 0 } n ? n : null;
@@ -50,9 +52,9 @@ public class ExcelItemLoader
             {
                 Id = id.ToString(),
                 ItemDescription = itemDescription,
-                ObtainedAt = obtainedAt,
-                SigningYear = signingYear,
-                SigningDate = signingDate,
+                ItemSource = obtainedAt,
+                YearObtained = yearOfObtaining,
+                DateObtained = dateOfObtaining,
                 Notes = notes
             });
 

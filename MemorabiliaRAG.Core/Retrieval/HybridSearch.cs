@@ -88,6 +88,7 @@ public class HybridSearch
         HashSet<string> stopWords = Constants.StopWords;
         
         return question
+            .Replace(".", "")
             .Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .Select(w => w.Trim('?', '.', ',').ToLowerInvariant())
             .Where(w => !stopWords.Contains(w) && w.Length > 2)

@@ -4,21 +4,21 @@ public class MemorabiliaItem
 {
     public required string Id { get; set; }
     public required string ItemDescription { get; set; }    // Raw "Item" column, e.g. "Fear Factory - Obsolete signed CD"
-    public string? ObtainedAt { get; set; }                 // Source/Channel — eBay, Meet & Greet, artist's site, etc. (Nullable)
-    public int? SigningYear { get; set; }                   // Always known when signing is known
-    public DateOnly? SigningDate { get; set; }              // Only when a precise date exists
+    public string? ItemSource { get; set; }                 // Source/Channel — eBay, Meet & Greet, artist's site, etc. (Nullable)
+    public int? YearObtained { get; set; }                   // Always known since I know when I got each item :)
+    public DateOnly? DateObtained { get; set; }              // Only when a precise date exists, usually for items I got signed in-person
     public string? Notes { get; set; }                      // Nullable
 
     public string ToEmbeddingText()
     {
         List<string> parts = [ItemDescription];
 
-        if (!string.IsNullOrWhiteSpace(ObtainedAt)) 
-            parts.Add($"Obtained at: {ObtainedAt}");
-        if (SigningDate.HasValue) 
-            parts.Add($"Signed: {SigningDate:yyyy-MM-dd}");
-        else if (SigningYear.HasValue) 
-            parts.Add($"Signed in {SigningYear}");
+        if (!string.IsNullOrWhiteSpace(ItemSource)) 
+            parts.Add($"Source: {ItemSource}");
+        if (DateObtained.HasValue) 
+            parts.Add($"Date obtained: {DateObtained:yyyy-MM-dd}");
+        else if (YearObtained.HasValue) 
+            parts.Add($"Year obtained: {YearObtained}");
         if (!string.IsNullOrWhiteSpace(Notes)) 
             parts.Add(Notes);
         

@@ -1,3 +1,4 @@
+using MemorabiliaRAG.Core;
 using MemorabiliaRAG.Core.Data;
 using MemorabiliaRAG.Core.Embeddings;
 using MemorabiliaRAG.Core.Generation;
@@ -37,17 +38,9 @@ public class Program
         else
         {
             Console.WriteLine("Generating embeddings (first run)...");
+            embeddedItems = await EmbeddingMethods.EmbedItemsAsync(xlsxFilePath, cache, embeddingService);
 
-            var loader = new ExcelItemLoader();
-            List<MemorabiliaItem> items = loader.Load(xlsxFilePath);
-            Console.WriteLine($"Loaded {items.Count} items from spreadsheet.");
-
-            embeddedItems = await embeddingService.EmbedItemsAsync(
-                items,
-                progress: new Progress<int>(n =>
-                    Console.WriteLine($"  embedded {n}/{items.Count}")));
-
-            await cache.SaveAsync(embeddedItems);
+            Console.WriteLine($"Loaded {embeddedItems.Count} items from spreadsheet.");
             Console.WriteLine("Embeddings saved to cache.");
         }
 
@@ -70,9 +63,9 @@ public class Program
         };
 
         Console.WriteLine("\nKeywords from the test questions: ");
-        foreach (var q in testQuestions)
+        foreach (string q in testQuestions)
         {
-            var keywords = HybridSearch.ExtractKeywords(q);
+            List<string> keywords = HybridSearch.ExtractKeywords(q);
             Console.WriteLine($"\"{q}\" -> [{string.Join(", ", keywords)}]");
         }
 
@@ -80,38 +73,63 @@ public class Program
         Console.Write("Ask a question about your collection? : ");
 
         string? question = Console.ReadLine()?.Trim();
+
         while (!string.IsNullOrEmpty(question))
         {
             if (!string.IsNullOrWhiteSpace(question))
             {
-                float[] queryVector = await embeddingService.EmbedQueryAsync(question);
-                List<EmbeddedItem> topMatches =
-                    await search.FindTopMatchesAsync(question, embeddedItems, embeddingService);
-
-                var answerGenerator = new AnswerGenerator(openAiKey);
-
-                if (topMatches.Count == 0)
-                {
-                    Console.WriteLine("No relevant items found in your collection for that question.");
-                }
-                else
-                {
-                    Console.WriteLine("Top matches found: ");
-                    foreach (EmbeddedItem item in topMatches)
-                    {
-                        Console.WriteLine(item.Item.ItemDescription);
-                    }
-
-                    Console.WriteLine("Thinking...");
-                    string answer = await answerGenerator.GenerateAnswerAsync(question, topMatches);
-
-                    Console.WriteLine();
-                    Console.WriteLine("Answer:");
-                    Console.WriteLine(answer);
-                }
+                await AnswerGeneratorMethod(openAiKey, embeddingService, embeddedItems, search, question);
             }
 
             question = Console.ReadLine()!.Trim();
+        }
+
+    }
+
+    static async Task RerankerLlmMethod(string openAiKey, EmbeddingService embeddingService, List<EmbeddedItem> embeddedItems, HybridSearch hybridSearch, string question)
+    {
+        var reranker = new RerankerLLM(openAiKey, onFallback: msg => Console.WriteLine($"[warn] {msg}"));
+
+        List<EmbeddedItem> candidates = 
+            await hybridSearch.FindTopMatchesAsync(question, embeddedItems, embeddingService, topK: Constants.CandidatePoolSize);
+
+        List<EmbeddedItem> topMatches = 
+            await reranker.RerankAsync(question, candidates, topK: Constants.FinalK);
+
+        Console.WriteLine($"Retrieved {candidates.Count} candidates; reranker kept {topMatches.Count}:");
+        
+        foreach (EmbeddedItem m in topMatches)
+            Console.WriteLine($"  + {m.Item.ItemDescription}");
+        
+        foreach (EmbeddedItem? d in candidates.Except(topMatches))
+            Console.WriteLine($"  - dropped: {d.Item.ItemDescription}");
+    }
+
+    static async Task AnswerGeneratorMethod(string openAiKey, EmbeddingService embeddingService, List<EmbeddedItem> embeddedItems, HybridSearch hybridSearch, string question)
+    {
+        List<EmbeddedItem> topMatches =
+            await hybridSearch.FindTopMatchesAsync(question, embeddedItems, embeddingService);
+
+        var answerGenerator = new AnswerGenerator(openAiKey);
+
+        if (topMatches.Count == 0)
+        {
+            Console.WriteLine("No relevant items found in your collection for that question.");
+        }
+        else
+        {
+            Console.WriteLine("Top matches found: ");
+            foreach (EmbeddedItem item in topMatches)
+            {
+                Console.WriteLine(item.Item.ItemDescription);
+            }
+
+            Console.WriteLine("Thinking...");
+            string answer = await answerGenerator.GenerateAnswerAsync(question, topMatches);
+
+            Console.WriteLine();
+            Console.WriteLine("Answer:");
+            Console.WriteLine(answer);
         }
     }
 }

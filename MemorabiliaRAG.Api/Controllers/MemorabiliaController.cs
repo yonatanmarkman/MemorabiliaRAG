@@ -3,6 +3,8 @@ using MemorabiliaRAG.Core.Embeddings;
 using MemorabiliaRAG.Core.Generation;
 using MemorabiliaRAG.Core.Models;
 using MemorabiliaRAG.Core.Retrieval;
+using System.Diagnostics;
+using MemorabiliaRAG.Core;
 
 namespace MemorabiliaRAG.Api.Controllers;
 
@@ -14,17 +16,20 @@ public class MemorabiliaController : ControllerBase
     private readonly HybridSearch _hybridSearch;
     private readonly EmbeddingService _embeddingService;
     private readonly AnswerGenerator _answerGenerator;
+    private readonly IReranker _reranker;
 
     public MemorabiliaController(
         List<EmbeddedItem> embeddedItems,
         HybridSearch hybridSearch,
         EmbeddingService embeddingService,
-        AnswerGenerator answerGenerator)
+        AnswerGenerator answerGenerator,
+        IReranker reranker)
     {
         _embeddedItems = embeddedItems;
         _hybridSearch = hybridSearch;
         _embeddingService = embeddingService;
         _answerGenerator = answerGenerator;
+        _reranker = reranker;
     }
 
     [HttpGet("health")]
@@ -70,9 +75,7 @@ public class MemorabiliaController : ControllerBase
 
         if (topMatches.Count == 0)
         {
-            return Ok(new AskResponse(
-                "No relevant items found in your collection for that question.",
-                matchesList));
+            return Ok("No relevant items found in your collection for that question.");
         }
 
         string answer = await _answerGenerator
@@ -85,8 +88,59 @@ public class MemorabiliaController : ControllerBase
             answer,
             matchesList));
     }
+
+    [HttpPost("askv2")]
+    public async Task<IActionResult> AskV2([FromBody] AskRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Question))
+        {
+            return BadRequest("Question cannot be empty.");
+        }
+
+        var sw = Stopwatch.StartNew();
+        List<EmbeddedItem> candidatesFromHybridSearch = await _hybridSearch.FindTopMatchesAsync(
+            request.Question, 
+            _embeddedItems, 
+            _embeddingService, 
+            Constants.CandidatePoolSize);
+        long retrieveMs = sw.ElapsedMilliseconds;
+        sw.Restart();
+
+
+        List<EmbeddedItem> topMatchesFromReranker = await _reranker.RerankAsync(
+            request.Question, 
+            candidatesFromHybridSearch, 
+            Constants.FinalK);
+        long rerankMs = sw.ElapsedMilliseconds;
+        sw.Restart();
+
+        if (topMatchesFromReranker.Count == 0)
+        {
+            return Ok("No relevant items found in your collection for that question.");
+        }
+
+        string answer = await _answerGenerator
+            .GenerateAnswerAsync(request.Question, topMatchesFromReranker);
+        long generateMs = sw.ElapsedMilliseconds;
+
+        List<string> candidatesList = candidatesFromHybridSearch
+            .Select(m => m.Item.ItemDescription)
+            .ToList();
+        List<string> topMatchesList = topMatchesFromReranker
+            .Select(m => m.Item.ItemDescription)
+            .ToList();
+        
+        Console.WriteLine($"retrieve {retrieveMs} ms | rerank {rerankMs} ms | generate {generateMs} ms");
+
+        return Ok(new AskV2Response(
+            answer,
+            topMatchesList,
+            candidatesList));
+    }
+
 }
 
 // ---- Request/response records ----
 public record AskRequest(string Question);
 public record AskResponse(string Answer, List<string> RetrievedCandidates);
+public record AskV2Response(string Answer, List<string> TopMatchesFromReranker, List<string> RetrievedCandidates);
